@@ -1,4 +1,3 @@
-
 import React, { useRef, useState, useEffect } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Button } from '@/components/ui/button';
@@ -19,9 +18,11 @@ const HandwritingAssessment = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [selectedLanguage, setSelectedLanguage] = useState("English");
   const [selectedAgeGroup, setSelectedAgeGroup] = useState("7-9");
+  const [dyslexiaResult, setDyslexiaResult] = useState<{
+    detected: boolean; percent: number;
+  } | null>(null);
   const { toast } = useToast();
 
-  // Initialize canvas context
   useEffect(() => {
     if (canvasRef.current) {
       const canvas = canvasRef.current;
@@ -37,21 +38,18 @@ const HandwritingAssessment = () => {
     }
   }, []);
 
-  // Handle window resize for canvas
   useEffect(() => {
     const handleResize = () => {
       if (canvasRef.current && ctx) {
         const canvas = canvasRef.current;
         const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
         
-        // Set canvas size to parent container size
         const container = canvas.parentElement;
         if (container) {
           canvas.width = container.clientWidth;
           canvas.height = container.clientHeight;
         }
         
-        // Restore drawing after resize
         ctx.putImageData(imgData, 0, 0);
         ctx.lineWidth = 2;
         ctx.lineCap = 'round';
@@ -69,7 +67,6 @@ const HandwritingAssessment = () => {
     if (ctx) {
       ctx.beginPath();
       
-      // Handle both mouse and touch events
       const { x, y } = getPointerPosition(e);
       ctx.moveTo(x, y);
     }
@@ -78,7 +75,6 @@ const HandwritingAssessment = () => {
   const draw = (e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>) => {
     if (!isDrawing || !ctx) return;
     
-    // Handle both mouse and touch events
     const { x, y } = getPointerPosition(e);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -88,7 +84,6 @@ const HandwritingAssessment = () => {
     setIsDrawing(false);
     if (ctx) {
       ctx.closePath();
-      // Save the image data when drawing is complete
       if (canvasRef.current) {
         setImageData(canvasRef.current.toDataURL('image/png'));
       }
@@ -101,13 +96,11 @@ const HandwritingAssessment = () => {
 
     let x, y;
     if ('touches' in e) {
-      // Touch event
       const touch = e.touches[0];
       const rect = canvas.getBoundingClientRect();
       x = touch.clientX - rect.left;
       y = touch.clientY - rect.top;
     } else {
-      // Mouse event
       x = e.nativeEvent.offsetX;
       y = e.nativeEvent.offsetY;
     }
@@ -132,10 +125,8 @@ const HandwritingAssessment = () => {
       const img = new Image();
       img.onload = () => {
         if (canvasRef.current && ctx) {
-          // Clear canvas first
           ctx.clearRect(0, 0, canvasRef.current.width, canvasRef.current.height);
           
-          // Calculate scaling to fit the canvas while maintaining aspect ratio
           const scale = Math.min(
             canvasRef.current.width / img.width,
             canvasRef.current.height / img.height
@@ -164,9 +155,15 @@ const HandwritingAssessment = () => {
     }
 
     setIsLoading(true);
-    // Simulate API call for demo purposes
+
     setTimeout(() => {
-      // Mock analysis result based on parameters
+      const percent = Math.floor(Math.random() * 31) + 35;
+      const detected = percent >= 50;
+      setDyslexiaResult({
+        detected,
+        percent,
+      });
+
       const mockAnalysis = `
 ## Handwriting Analysis Results
 
@@ -194,7 +191,7 @@ const HandwritingAssessment = () => {
       
       setAnalysisResult(mockAnalysis);
       setIsLoading(false);
-      
+
       toast({
         title: "Analysis Complete",
         description: "Handwriting sample has been successfully analyzed.",
@@ -334,7 +331,41 @@ const HandwritingAssessment = () => {
                   <FileText className="text-app-blue mr-2" size={20} />
                   <h2 className="card-title">Analysis Results</h2>
                 </div>
-                
+
+                {analysisResult && dyslexiaResult && (
+                  <div className="mb-6 rounded-lg border border-gray-200 p-4 bg-gray-50 flex flex-col items-center">
+                    <span className="font-semibold text-lg mb-2">
+                      Dyslexia Detection
+                    </span>
+                    <div className="flex items-center w-full max-w-xs gap-2">
+                      <div className="w-full bg-gray-200 rounded-full h-4 overflow-hidden">
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            dyslexiaResult.detected
+                              ? "bg-red-500"
+                              : "bg-green-500"
+                          }`}
+                          style={{ width: `${dyslexiaResult.percent}%` }}
+                        />
+                      </div>
+                      <span className="ml-2 font-bold text-gray-700 min-w-[40px]">
+                        {dyslexiaResult.percent}%
+                      </span>
+                    </div>
+                    <span
+                      className={`mt-2 font-medium ${
+                        dyslexiaResult.detected
+                          ? "text-red-600"
+                          : "text-green-600"
+                      }`}
+                    >
+                      {dyslexiaResult.detected
+                        ? "Possible dyslexia detected"
+                        : "No significant dyslexia indicators"}
+                    </span>
+                  </div>
+                )}
+
                 <div className="flex-1 overflow-auto">
                   {analysisResult ? (
                     <div className="prose max-w-full">
@@ -352,7 +383,14 @@ const HandwritingAssessment = () => {
                 
                 {analysisResult && (
                   <div className="mt-4 flex justify-end">
-                    <Button variant="outline" className="flex items-center gap-2" onClick={() => setAnalysisResult(null)}>
+                    <Button
+                      variant="outline"
+                      className="flex items-center gap-2"
+                      onClick={() => {
+                        setAnalysisResult(null);
+                        setDyslexiaResult(null);
+                      }}
+                    >
                       <RefreshCw size={16} />
                       Reset Analysis
                     </Button>
