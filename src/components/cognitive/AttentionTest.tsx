@@ -31,11 +31,16 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
     misses: number;
     averageReactionTime: number;
   } | null>(null);
+  
+  // Maximum number of targets to show
+  const MAX_TARGETS = 6;
 
   const showNextTargetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const targetDisappearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const testContainerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    // Clean up timeouts when component unmounts
     return () => {
       if (showNextTargetTimeoutRef.current) clearTimeout(showNextTargetTimeoutRef.current);
       if (targetDisappearTimeoutRef.current) clearTimeout(targetDisappearTimeoutRef.current);
@@ -43,6 +48,7 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
   }, []);
 
   const startTest = () => {
+    console.log("Starting attention test");
     setTestActive(true);
     setTargetsShown(0);
     setHits(0);
@@ -51,68 +57,93 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
     setResults(null);
     setTarget(null);
 
+    // Clear any existing timeouts
     if (showNextTargetTimeoutRef.current) clearTimeout(showNextTargetTimeoutRef.current);
     if (targetDisappearTimeoutRef.current) clearTimeout(targetDisappearTimeoutRef.current);
 
+    // Start showing targets after a short delay
     setTimeout(() => {
       showNextTarget();
     }, 1000);
   };
 
   const showNextTarget = () => {
+    console.log("Attempting to show next target", { testActive, targetsShown, MAX_TARGETS });
+    
     if (!testActive) return;
 
-    if (targetsShown >= 10) {
+    // Check if we've shown the maximum number of targets
+    if (targetsShown >= MAX_TARGETS) {
+      console.log("Max targets reached, completing test");
       completeTest();
       return;
     }
 
-    const delay = Math.random() * 2000 + 1000;
+    // Clear the current target
     setTarget(null);
 
+    // Clear any existing timeout
     if (showNextTargetTimeoutRef.current) clearTimeout(showNextTargetTimeoutRef.current);
 
+    // Random delay between 1-3 seconds before showing the next target
+    const delay = Math.random() * 1000 + 1000;
+    console.log(`Setting next target to appear in ${delay}ms`);
+    
     showNextTargetTimeoutRef.current = setTimeout(() => {
       if (!testActive) return;
 
-      const x = Math.floor(Math.random() * 80) + 10;
-      const y = Math.floor(Math.random() * 80) + 10;
-
+      console.log("Showing new target now");
+      
+      // Generate random position
+      const x = Math.floor(Math.random() * 80) + 10;  // 10-90% of container width
+      const y = Math.floor(Math.random() * 80) + 10;  // 10-90% of container height
+      
+      console.log("New target position:", { x, y });
+      
+      // Set the new target position
       setTarget({ x, y });
       setLastTargetTime(Date.now());
       setTargetsShown(prev => prev + 1);
 
+      // Clear any existing timeout for target disappearance
       if (targetDisappearTimeoutRef.current) clearTimeout(targetDisappearTimeoutRef.current);
 
+      // If target is not clicked within 2 seconds, count as miss and show next
       targetDisappearTimeoutRef.current = setTimeout(() => {
-        if (target !== null) {
-          setMisses(prev => prev + 1);
-          setTarget(null);
+        console.log("Target timed out - counting as miss");
+        setMisses(prev => prev + 1);
+        setTarget(null);
 
-          if (targetsShown < 10) {
-            showNextTarget();
-          } else {
-            completeTest();
-          }
+        if (targetsShown < MAX_TARGETS) {
+          showNextTarget();
+        } else {
+          completeTest();
         }
-      }, 1500);
+      }, 2000);
     }, delay);
   };
 
   const handleTargetClick = () => {
+    console.log("Target clicked");
+    
     if (lastTargetTime === null) return;
 
+    // Clear the target disappearance timeout
     if (targetDisappearTimeoutRef.current) {
       clearTimeout(targetDisappearTimeoutRef.current);
       targetDisappearTimeoutRef.current = null;
     }
 
+    // Calculate reaction time
     const reactionTime = Date.now() - lastTargetTime;
+    console.log(`Reaction time: ${reactionTime}ms`);
+    
     setReactionTimes(prev => [...prev, reactionTime]);
     setHits(prev => prev + 1);
     setTarget(null);
 
-    if (hits + misses < 9) {
+    // Show next target if not reached maximum
+    if (targetsShown < MAX_TARGETS) {
       showNextTarget();
     } else {
       completeTest();
@@ -120,6 +151,9 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
   };
 
   const completeTest = () => {
+    console.log("Completing test");
+    
+    // Clear all timeouts
     if (showNextTargetTimeoutRef.current) {
       clearTimeout(showNextTargetTimeoutRef.current);
       showNextTargetTimeoutRef.current = null;
@@ -129,37 +163,44 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
       targetDisappearTimeoutRef.current = null;
     }
 
+    // End the test
     setTestActive(false);
     setTarget(null);
 
+    // Calculate average reaction time
     const avgReactionTime = reactionTimes.length > 0 
       ? Math.floor(reactionTimes.reduce((acc, time) => acc + time, 0) / reactionTimes.length) 
       : 0;
 
-    const results = {
+    // Set results
+    const testResults = {
       totalTargets: targetsShown,
       hits: hits,
       misses: misses,
       averageReactionTime: avgReactionTime
     };
 
-    setResults(results);
+    console.log("Test results:", testResults);
+    setResults(testResults);
 
+    // Show toast notification
     toast({
       title: "Attention Test Completed",
-      description: `You responded to ${results.hits} out of ${results.totalTargets} targets with an average reaction time of ${results.averageReactionTime}ms.`,
+      description: `You responded to ${testResults.hits} out of ${testResults.totalTargets} targets with an average reaction time of ${testResults.averageReactionTime}ms.`,
     });
 
-    const hitRate = (results.hits / results.totalTargets) * 100;
-    const reactionIndicator = results.averageReactionTime > 500 ? 30 : results.averageReactionTime > 350 ? 20 : 10;
+    // Calculate dyslexia indicator score
+    const hitRate = (testResults.hits / testResults.totalTargets) * 100;
+    const reactionIndicator = testResults.averageReactionTime > 500 ? 30 : testResults.averageReactionTime > 350 ? 20 : 10;
     const attentionDyslexiaIndicator = Math.max(0, 100 - hitRate) * 0.3 + reactionIndicator;
 
+    // Send results to parent component
     onResultsUpdate({
       hitRate,
-      hits: results.hits,
-      totalTargets: results.totalTargets,
-      misses: results.misses,
-      averageReactionTime: results.averageReactionTime,
+      hits: testResults.hits,
+      totalTargets: testResults.totalTargets,
+      misses: testResults.misses,
+      averageReactionTime: testResults.averageReactionTime,
       dyslexiaIndicator: attentionDyslexiaIndicator
     });
   };
@@ -176,10 +217,13 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
           Start Attention Test
         </Button>
       ) : testActive ? (
-        <div className="p-6 border rounded-md relative h-64">
+        <div 
+          ref={testContainerRef}
+          className="p-6 border rounded-md relative h-64 bg-gray-50"
+        >
           {target && (
             <button
-              className="absolute w-12 h-12 rounded-full bg-app-green animate-pulse flex items-center justify-center cursor-pointer"
+              className="absolute w-12 h-12 rounded-full bg-app-green animate-pulse flex items-center justify-center cursor-pointer z-10"
               style={{
                 left: `${target.x}%`,
                 top: `${target.y}%`,
@@ -191,11 +235,11 @@ const AttentionTest: React.FC<AttentionTestProps> = ({ onResultsUpdate }) => {
             </button>
           )}
           <div className="absolute bottom-4 left-0 right-0 text-center text-sm text-gray-500">
-            Targets: {targetsShown}/10 | Hits: {hits}
+            Targets: {targetsShown}/{MAX_TARGETS} | Hits: {hits}
           </div>
           <Progress 
             className="absolute bottom-0 left-0 right-0" 
-            value={targetsShown * 10} 
+            value={(targetsShown / MAX_TARGETS) * 100} 
           />
         </div>
       ) : (

@@ -24,18 +24,17 @@ const AnalysisResults: React.FC<AnalysisResultsProps> = ({
           <div className="prose max-w-full">
             <div className="whitespace-pre-line">{analysisResults}</div>
             
-            {dyslexiaScore && (
+            {dyslexiaScore !== null && (
               <div className="mt-6 border-t pt-4">
                 <h3 className="text-lg font-medium mb-2">Dyslexia Indicator</h3>
-                <div className="w-full bg-gray-200 rounded-full h-4 mb-2">
-                  <div 
-                    className={`h-4 rounded-full ${
-                      dyslexiaScore > 65 ? 'bg-red-500' : 
-                      dyslexiaScore > 35 ? 'bg-yellow-500' : 'bg-green-500'
-                    }`}
-                    style={{ width: `${dyslexiaScore}%` }}
-                  ></div>
-                </div>
+                <Progress 
+                  className="mb-2 h-4" 
+                  value={dyslexiaScore}
+                  indicatorColor={
+                    dyslexiaScore > 65 ? 'bg-red-500' : 
+                    dyslexiaScore > 35 ? 'bg-yellow-500' : 'bg-green-500'
+                  }
+                />
                 <div className="flex justify-between text-sm text-gray-500">
                   <span>Low (10%)</span>
                   <span>Moderate (50%)</span>
