@@ -41,6 +41,7 @@ const CognitiveAssessment = () => {
   const [correctPatterns, setCorrectPatterns] = useState(0);
   const [patternStartTime, setPatternStartTime] = useState<number | null>(null);
   const [totalPatternTime, setTotalPatternTime] = useState(0);
+  const [problemOptions, setProblemOptions] = useState<number[]>([]);
   const [problemSolvingResults, setProblemSolvingResults] = useState<{
     correctPatterns: number;
     totalPatterns: number;
@@ -136,6 +137,8 @@ const CognitiveAssessment = () => {
   };
   
   const showNextTarget = () => {
+    if (!attentionTestActive) return;
+    
     if (attentionTargetsShown >= 10) {
       completeAttentionTest();
       return;
@@ -143,6 +146,9 @@ const CognitiveAssessment = () => {
     
     // Random delay between targets (1-3 seconds)
     const delay = Math.random() * 2000 + 1000;
+    
+    // Clear any existing target
+    setAttentionTarget(null);
     
     setTimeout(() => {
       if (!attentionTestActive) return;
@@ -157,9 +163,13 @@ const CognitiveAssessment = () => {
       // Target disappears after 1.5 seconds if not clicked
       setTimeout(() => {
         if (attentionTarget !== null) {
-          setAttentionTarget(null);
           setAttentionMisses(prev => prev + 1);
-          showNextTarget();
+          setAttentionTarget(null);
+          
+          // Show next target after a miss
+          if (attentionTargetsShown < 10) {
+            showNextTarget();
+          }
         }
       }, 1500);
     }, delay);
@@ -173,7 +183,12 @@ const CognitiveAssessment = () => {
     setAttentionHits(prev => prev + 1);
     setAttentionTarget(null);
     
-    showNextTarget();
+    // Show next target if not completed
+    if (attentionHits + attentionMisses < 9) { // Less than 9 because we just incremented attentionHits
+      showNextTarget();
+    } else {
+      completeAttentionTest();
+    }
   };
   
   const completeAttentionTest = () => {
@@ -226,7 +241,8 @@ const CognitiveAssessment = () => {
     setProblemSolvingResults(null);
     
     // Generate first pattern
-    generatePattern();
+    const options = generatePattern();
+    setProblemOptions(options);
   };
   
   const generatePattern = () => {
@@ -291,7 +307,8 @@ const CognitiveAssessment = () => {
     if (patternsCompleted < 4) {
       setTimeout(() => {
         setUserSolution(null);
-        generatePattern();
+        const options = generatePattern();
+        setProblemOptions(options);
       }, 1000);
     } else {
       completeProblemSolvingTest();
@@ -575,7 +592,7 @@ const CognitiveAssessment = () => {
                         <div className="p-6 border rounded-md relative h-64">
                           {attentionTarget && (
                             <button
-                              className="absolute w-12 h-12 rounded-full bg-app-green animate-pulse flex items-center justify-center"
+                              className="absolute w-12 h-12 rounded-full bg-app-green animate-pulse flex items-center justify-center cursor-pointer"
                               style={{
                                 left: `${attentionTarget.x}%`,
                                 top: `${attentionTarget.y}%`,
@@ -663,19 +680,16 @@ const CognitiveAssessment = () => {
                           </p>
                           
                           <div className="grid grid-cols-4 gap-2">
-                            {Array.from({ length: 4 }).map((_, index) => {
-                              const value = index + 5; // Just sample values, will be generated dynamically
-                              return (
-                                <button
-                                  key={index}
-                                  onClick={() => handlePatternSelection(value)}
-                                  className={`py-2 rounded bg-app-blue text-white hover:bg-app-blue-dark ${userSolution === value ? 'ring-2 ring-offset-2' : ''}`}
-                                  disabled={userSolution !== null}
-                                >
-                                  {value}
-                                </button>
-                              );
-                            })}
+                            {problemOptions.map((value, index) => (
+                              <button
+                                key={index}
+                                onClick={() => handlePatternSelection(value)}
+                                className={`py-2 rounded bg-app-blue text-white hover:bg-app-blue-dark ${userSolution === value ? 'ring-2 ring-offset-2' : ''}`}
+                                disabled={userSolution !== null}
+                              >
+                                {value}
+                              </button>
+                            ))}
                           </div>
                           
                           <div className="mt-4">
