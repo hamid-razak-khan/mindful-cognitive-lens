@@ -1,5 +1,5 @@
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import Layout from '@/components/layout/Layout';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,22 @@ const CognitiveAssessment = () => {
   
   // Colors for memory game
   const colors = ['red', 'blue', 'green', 'yellow', 'purple', 'orange'];
+  
+  // Refs for attention test
+  const showNextTargetTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const targetDisappearTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Cleanup timeouts when component unmounts or test stops
+  useEffect(() => {
+    return () => {
+      if (showNextTargetTimeoutRef.current) {
+        clearTimeout(showNextTargetTimeoutRef.current);
+      }
+      if (targetDisappearTimeoutRef.current) {
+        clearTimeout(targetDisappearTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Memory Game Functions
   const startMemoryGame = () => {
@@ -132,8 +148,21 @@ const CognitiveAssessment = () => {
     setAttentionResults(null);
     setAttentionTarget(null);
     
-    // Start showing targets
-    showNextTarget();
+    // Clear any existing timeouts
+    if (showNextTargetTimeoutRef.current) {
+      clearTimeout(showNextTargetTimeoutRef.current);
+    }
+    if (targetDisappearTimeoutRef.current) {
+      clearTimeout(targetDisappearTimeoutRef.current);
+    }
+    
+    // Start showing targets after a short delay
+    setTimeout(() => {
+      showNextTarget();
+    }, 1000);
+    
+    // Log for debugging
+    console.log("Attention test started");
   };
   
   const showNextTarget = () => {
@@ -150,25 +179,42 @@ const CognitiveAssessment = () => {
     // Clear any existing target
     setAttentionTarget(null);
     
-    setTimeout(() => {
+    // Clear any existing timeouts
+    if (showNextTargetTimeoutRef.current) {
+      clearTimeout(showNextTargetTimeoutRef.current);
+    }
+    
+    // Set timeout for showing next target
+    showNextTargetTimeoutRef.current = setTimeout(() => {
       if (!attentionTestActive) return;
       
+      // Generate random position
       const x = Math.floor(Math.random() * 80) + 10; // 10-90% of container width
       const y = Math.floor(Math.random() * 80) + 10; // 10-90% of container height
       
+      // Show target and set timestamp
       setAttentionTarget({ x, y });
       setLastTargetTime(Date.now());
       setAttentionTargetsShown(prev => prev + 1);
       
+      console.log(`Target shown at position (${x}%, ${y}%)`);
+      
       // Target disappears after 1.5 seconds if not clicked
-      setTimeout(() => {
+      if (targetDisappearTimeoutRef.current) {
+        clearTimeout(targetDisappearTimeoutRef.current);
+      }
+      
+      targetDisappearTimeoutRef.current = setTimeout(() => {
         if (attentionTarget !== null) {
+          console.log("Target missed - timeout");
           setAttentionMisses(prev => prev + 1);
           setAttentionTarget(null);
           
           // Show next target after a miss
           if (attentionTargetsShown < 10) {
             showNextTarget();
+          } else {
+            completeAttentionTest();
           }
         }
       }, 1500);
@@ -176,12 +222,22 @@ const CognitiveAssessment = () => {
   };
   
   const handleTargetClick = () => {
+    console.log("Target clicked!");
+    
     if (lastTargetTime === null) return;
+    
+    // Clear the disappear timeout
+    if (targetDisappearTimeoutRef.current) {
+      clearTimeout(targetDisappearTimeoutRef.current);
+      targetDisappearTimeoutRef.current = null;
+    }
     
     const reactionTime = Date.now() - lastTargetTime;
     setReactionTimes(prev => [...prev, reactionTime]);
     setAttentionHits(prev => prev + 1);
     setAttentionTarget(null);
+    
+    console.log(`Hit recorded. Reaction time: ${reactionTime}ms`);
     
     // Show next target if not completed
     if (attentionHits + attentionMisses < 9) { // Less than 9 because we just incremented attentionHits
@@ -192,7 +248,20 @@ const CognitiveAssessment = () => {
   };
   
   const completeAttentionTest = () => {
+    console.log("Attention test completed");
+    
+    // Clear any existing timeouts
+    if (showNextTargetTimeoutRef.current) {
+      clearTimeout(showNextTargetTimeoutRef.current);
+      showNextTargetTimeoutRef.current = null;
+    }
+    if (targetDisappearTimeoutRef.current) {
+      clearTimeout(targetDisappearTimeoutRef.current);
+      targetDisappearTimeoutRef.current = null;
+    }
+    
     setAttentionTestActive(false);
+    setAttentionTarget(null);
     
     const avgReactionTime = reactionTimes.length > 0 
       ? Math.floor(reactionTimes.reduce((acc, time) => acc + time, 0) / reactionTimes.length) 
